@@ -3,9 +3,9 @@
 As an experimental project, it seems more useful than I thought.
 
 <figure class="half">
-<a href=""><img width="480" src="ImGuiMfcDlg.png"></a>
+<a href="ImGuiMfcDlg.png"><img width="400" src="ImGuiMfcDlg.png"></a>
 &nbsp;
-<a href=""><img width="480" src="ImGuiMfcDlg-Light.png"></a>
+<a href="ImGuiMfcDlg-Light.png"><img width="400" src="ImGuiMfcDlg-Light.png"></a>
 </figure>
 
 ## References
