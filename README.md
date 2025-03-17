@@ -14,4 +14,4 @@ As an experimental project, it seems more useful than I thought.
 * https://codegrimie.tistory.com/65
 
 ## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE) file for details.
