@@ -42,7 +42,7 @@ CStringA utf8(LPCWSTR u16)
 IMPLEMENT_DYNAMIC(CImGuiDialog, CDialog)
 
 CImGuiDialog::CImGuiDialog(UINT nIDTemplate, CWnd* pParent)
-	: CDialog(nIDTemplate, pParent), m_bDarkMode(false), m_bImGuiInited(false), m_bRenderOk(false)
+	: CDialog(nIDTemplate, pParent), m_bDarkMode(false), m_bImGuiInited(false), m_bRenderOk(false), m_pMenu(nullptr)
 {
 	m_bDarkMode = !App::IsLightTheme();
 	BackColor = ImColor(IM_COL32_WHITE);
@@ -50,6 +50,11 @@ CImGuiDialog::CImGuiDialog(UINT nIDTemplate, CWnd* pParent)
 
 CImGuiDialog::~CImGuiDialog()
 {
+	if (m_pMenu) {
+		m_pMenu->DestroyMenu();
+		delete m_pMenu;
+		m_pMenu = nullptr;
+	}
 }
 
 void CImGuiDialog::DoDataExchange(CDataExchange* pDX)
@@ -79,6 +84,10 @@ BOOL CImGuiDialog::OnInitDialog()
 		return FALSE;
 	}
 	wglMakeCurrent(g_MainWindow.hDC, g_hRC);
+
+	if (GetMenu()) {
+		assert(0 && "must use SetMenu(UINT) before OnInitDialog()");
+	}
 
 	CRect rect;
 	GetClientRect(rect);
@@ -136,6 +145,18 @@ CImGuiDialog::ImCtrl* CImGuiDialog::GetDlgItem(UINT nID) const
 	return nullptr;
 }
 
+bool CImGuiDialog::SetMenu(UINT nMenuID)
+{
+	delete m_pMenu;
+	m_pMenu = new CMenu();
+	if (!m_pMenu->LoadMenu(nMenuID)) {
+		delete m_pMenu;
+		m_pMenu = nullptr;
+		return false;
+	}
+	return true;
+}
+
 CImGuiDialog::CtrlType CImGuiDialog::GetCtrlType(LPCTSTR lpszClassName, DWORD dwStyle)
 {
 	if (_tcscmp(lpszClassName, WC_BUTTON) == 0) {
@@ -157,6 +178,10 @@ CImGuiDialog::CtrlType CImGuiDialog::GetCtrlType(LPCTSTR lpszClassName, DWORD dw
 		return CtrlType::ScrollBar;
 	} else if (_tcscmp(lpszClassName, WC_COMBOBOX) == 0) {
 		return CtrlType::ComboBox;
+	} else if (_tcscmp(lpszClassName, PROGRESS_CLASS) == 0) {
+		return CtrlType::ProgressBar;
+	} else if (_tcscmp(lpszClassName, TRACKBAR_CLASS) == 0) {
+		return CtrlType::Slider;
 	}
 	return CtrlType::None;
 }
@@ -224,15 +249,41 @@ bool CImGuiDialog::RenderImpl(HDC hDC)
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
 
+	ImVec2 menubar_size;
+	if (m_pMenu) {
+		if (ImGui::BeginMainMenuBar()) {
+			menubar_size = ImGui::GetWindowSize();
+			CString strMenu;
+			int iMenuCount = m_pMenu->GetMenuItemCount();
+			for (int i = 0; i < iMenuCount; i++) {
+				m_pMenu->GetMenuString(i, strMenu, MF_BYPOSITION);
+				if (ImGui::BeginMenu(utf8(strMenu))) {
+					auto pSubMenu = m_pMenu->GetSubMenu(i);
+					int iItemCount = pSubMenu->GetMenuItemCount();
+					for (int j = 0; j < iItemCount; j++) {
+						pSubMenu->GetMenuString(j, strMenu, MF_BYPOSITION);
+						if (strMenu.IsEmpty())
+							ImGui::Separator();
+						else if (ImGui::MenuItem(utf8(strMenu))) {
+							PostMessage(WM_COMMAND, pSubMenu->GetMenuItemID(j), (LPARAM)0);
+						}
+					}
+					ImGui::EndMenu();
+				}
+			}
+			ImGui::EndMainMenuBar();
+		}
+	}
+
 	const auto wndSize = ImVec2((float)rect.Width(), (float)rect.Height());
 	const char* wnd_name = "Controls";
 	ImGui::Begin(wnd_name, nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove);
-	ImGui::SetWindowPos(ImVec2(0, 0));
+	ImGui::SetWindowPos(ImVec2(0, menubar_size.y));
 	ImGui::SetWindowSize(wndSize);
 	CStringA str;
 	int radio_idx = 0;
-	
 	bool pre_bool;
+	ImVec2 txt_size;
 	CtrlType preType = CtrlType::None;
 	const auto& style = ImGui::GetStyle();
 	for (auto& item : m_vtCtrls) {
@@ -254,17 +305,18 @@ bool CImGuiDialog::RenderImpl(HDC hDC)
 				PostMessage(WM_COMMAND, MAKEWPARAM(item.id, BN_CLICKED), (LPARAM)0);
 			break;
 		case CtrlType::GroupBox:
-		{
-			auto g = ImGui::GetWindowDrawList();
-			g->AddRect(ImVec2(x, y), ImVec2(x + cx, y + cy),
-				ImColor(style.Colors[ImGuiCol_Border]), style.FrameRounding, ImDrawFlags_RoundCornersAll, 1.5f);
-			auto txt_size = ImGui::CalcTextSize(item.text);
-			x += (float)theApp.ScaleDpi(8);
-			y -= m_fontHeight / 2.0f;
-			g->AddRectFilled(ImVec2(x, y), ImVec2(x + txt_size.x, y + txt_size.y), ImColor(style.Colors[ImGuiCol_WindowBg]));
-			g->AddText(ImVec2(x, y), ImColor(style.Colors[ImGuiCol_Text]), item.text);
-		}
-		break;
+			{
+				auto g = ImGui::GetWindowDrawList();
+				y += menubar_size.y;
+				g->AddRect(ImVec2(x, y), ImVec2(x + cx, y + cy),
+					ImColor(style.Colors[ImGuiCol_Border]), style.FrameRounding, ImDrawFlags_RoundCornersAll, 1.5f);
+				txt_size = ImGui::CalcTextSize(item.text);
+				x += (float)theApp.ScaleDpi(8);
+				y -= m_fontHeight / 2.0f;
+				g->AddRectFilled(ImVec2(x, y), ImVec2(x + txt_size.x, y + txt_size.y), ImColor(style.Colors[ImGuiCol_WindowBg]));
+				g->AddText(ImVec2(x, y), ImColor(style.Colors[ImGuiCol_Text]), item.text);
+			}
+			break;
 		case CtrlType::PushButton:
 			if (ImGui::Button(item.text, ImVec2(cx, cy)))
 				PostMessage(WM_COMMAND, MAKEWPARAM(item.id, BN_CLICKED), (LPARAM)0);
@@ -276,7 +328,19 @@ bool CImGuiDialog::RenderImpl(HDC hDC)
 			ImGui::PopItemWidth();
 			break;
 		case CtrlType::Static:
-			ImGui::Text(item.text);
+			switch (item.style & SS_TYPEMASK) {
+			case SS_CENTER:
+				txt_size = ImGui::CalcTextSize(item.text);
+				x += (item.rect.Width() - txt_size.x) / 2.0f;
+				ImGui::SetCursorPos(ImVec2(x, y));
+				break;
+			case SS_RIGHT:
+				txt_size = ImGui::CalcTextSize(item.text);
+				x = item.rect.right - txt_size.x;
+				ImGui::SetCursorPos(ImVec2(x, y));
+				break;
+			}
+			ImGui::TextUnformatted(item.text);
 			break;
 		case CtrlType::ListBox:
 			break;
@@ -287,6 +351,14 @@ bool CImGuiDialog::RenderImpl(HDC hDC)
 			ImGui::PushItemWidth(cx);
 			ImGui::Combo((const char*)str, &item.state.selected, "aaaa\0bbbb\0cccc\0dddd\0eeee\0\0");
 			ImGui::PopItemWidth();
+			break;
+		case CtrlType::ProgressBar:
+			ImGui::ProgressBar(item.state.progress, ImVec2((float)item.rect.Width(), (float)item.rect.Height()));
+			break;
+		case CtrlType::Slider:
+			str.Format("##%u", item.id);
+			ImGui::SetNextItemWidth((float)item.rect.Width());
+			ImGui::SliderFloat(str, &item.state.progress, 0, 100, "");
 			break;
 		}
 		preType = item.type;
@@ -328,6 +400,7 @@ void CImGuiDialog::OnDestroy()
 LRESULT CImGuiDialog::OnKickIdle(WPARAM wParam, LPARAM lParam)
 {
 	RenderImpl(NULL);
+	Sleep(10);
 	return TRUE;
 }
 

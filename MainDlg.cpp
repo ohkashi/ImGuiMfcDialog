@@ -63,6 +63,7 @@ void CMainDlg::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CMainDlg, CImGuiDialog)
 	ON_WM_SYSCOMMAND()
 	ON_WM_QUERYDRAGICON()
+	ON_WM_SETTINGCHANGE()
 	ON_COMMAND(ID_APP_ABOUT, &CMainDlg::OnAppAbout)
 	ON_BN_CLICKED(IDC_CHECK1, &CMainDlg::OnBnClickedCheck1)
 	ON_CONTROL_RANGE(BN_CLICKED, IDC_RADIO1, IDC_RADIO3, &CMainDlg::OnBnClickedRadio)
@@ -73,6 +74,7 @@ END_MESSAGE_MAP()
 
 BOOL CMainDlg::OnInitDialog()
 {
+	SetMenu(IDR_MAINFRAME);
 	CImGuiDialog::OnInitDialog();
 
 	// Add "About..." menu item to system menu.
@@ -102,6 +104,8 @@ BOOL CMainDlg::OnInitDialog()
 
 	auto pCheck = GetDlgItem(IDC_CHECK1);
 	pCheck->state.checked = !App::IsLightTheme();
+	auto pSlider = GetDlgItem(IDC_SLIDER1);
+	pSlider->state.progress = 0;
 
 	if (glewInit() != GLEW_OK) {
 		ASSERT(FALSE);
@@ -182,6 +186,15 @@ HCURSOR CMainDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+void CMainDlg::OnSettingChange(UINT uFlags, LPCTSTR lpszSection)
+{
+	CImGuiDialog::OnSettingChange(uFlags, lpszSection);
+
+	auto pCtrl = GetDlgItem(IDC_CHECK1);
+	pCtrl->state.checked = m_bDarkMode;
+	OnBnClickedCheck1();
+}
+
 void CMainDlg::OnAppAbout()
 {
 	CAboutDlg dlgAbout;
@@ -204,7 +217,7 @@ void CMainDlg::OnCancel()
 
 void CMainDlg::OnBnClickedCheck1()
 {
-	const auto& pCtrl = GetDlgItem(IDC_CHECK1);
+	const auto pCtrl = GetDlgItem(IDC_CHECK1);
 	m_bDarkMode = pCtrl->state.checked;
 	App::SetupImGuiStyle(m_bDarkMode ? App::ThemeStyle::Dark : App::ThemeStyle::Light);
 	ImGuiStyle& style = ImGui::GetStyle();
@@ -223,6 +236,15 @@ void CMainDlg::OnBeforeImGuiRender(ImGuiIO& io, const ImVec2& client_size)
 	static float f = 0.0f;
 	static int counter = 0;
 
+	static float progress = 0.0f, progress_dir = 1.0f;
+	progress += progress_dir * 0.4f * io.DeltaTime;
+	if (progress >= +1.1f) { progress = +1.1f; progress_dir *= -1.0f; }
+	if (progress <= -0.1f) { progress = -0.1f; progress_dir *= -1.0f; }
+
+	curAngle += 75.0f * io.DeltaTime;
+	if (curAngle >= 360)
+		curAngle -= 360;
+
 	/*ImGui::Begin(u8"¾È³ç, ¼¼»ó¾Æ!");
 	//ImGui::SetWindowPos(ImVec2(0, 0));
 	ImGui::Text("This is some useful text.");
@@ -235,6 +257,11 @@ void CMainDlg::OnBeforeImGuiRender(ImGuiIO& io, const ImVec2& client_size)
 	ImGui::SameLine();
 	ImGui::Text("counter = %d", counter);
 	*/
+	auto pProgress = GetDlgItem(IDC_PROGRESS1);
+	pProgress->state.progress = progress;
+	auto pSlider = GetDlgItem(IDC_SLIDER1);
+	auto pStatic = GetDlgItem(IDC_STATIC_SLIDER);
+	sprintf_s(pStatic->text, _countof(pStatic->text), "%d%%", (int)pSlider->state.progress);
 	ImGui::Begin("Footer", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs);
 	float cy = (float)m_fontHeight + theApp.ScaleDpi(21);
 	ImGui::SetWindowPos(ImVec2((float)theApp.ScaleDpi(4), client_size.y - cy));
@@ -245,10 +272,6 @@ void CMainDlg::OnBeforeImGuiRender(ImGuiIO& io, const ImVec2& client_size)
 
 void CMainDlg::OnRender(ImDrawData* pDrawData, const ImVec2& client_size)
 {
-	curAngle += 0.05f;
-	if (curAngle >= 360)
-		curAngle -= 360;
-
 	glUseProgram(shader);
 	glm::mat4 model = glm::mat4(1.0f);
 	model = glm::rotate(model, curAngle * toRadians, glm::vec3(0.0f, 0.0f, 1.0f));

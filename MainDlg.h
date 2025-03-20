@@ -47,6 +47,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg HCURSOR OnQueryDragIcon();
+	afx_msg void OnSettingChange(UINT uFlags, LPCTSTR lpszSection);
 	afx_msg void OnAppAbout();
 	afx_msg void OnBnClickedCheck1();
 	afx_msg void OnBnClickedRadio(UINT nID);

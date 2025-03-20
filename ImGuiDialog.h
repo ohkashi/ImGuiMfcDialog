@@ -15,7 +15,7 @@ public:
 	virtual ~CImGuiDialog();
 
 	enum class CtrlType {
-		None, CheckBox, RadioButton, GroupBox, PushButton, Edit, Static, ListBox, ScrollBar, ComboBox };
+		None, CheckBox, RadioButton, GroupBox, PushButton, Edit, Static, ListBox, ScrollBar, ComboBox, ProgressBar, Slider };
 
 	struct ImCtrl {
 		ImCtrl() { state.selected = -1; }
@@ -29,11 +29,13 @@ public:
 		union {
 			bool	checked;
 			int		selected;
+			float	progress;
 			int*	pIndex;
 		} state;
 	};
 
 	ImCtrl* GetDlgItem(UINT nID) const;
+	bool SetMenu(UINT nMenuID);
 
 	ImVec4	BackColor;
 
@@ -54,6 +56,7 @@ private:
 	int		m_iRadioState[10];
 	std::vector<ImCtrl>	m_vtCtrls;
 	std::unordered_map<UINT, ImCtrl*>	m_mapCtrlId;
+	CMenu*	m_pMenu;
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
